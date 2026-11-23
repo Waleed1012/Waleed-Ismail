@@ -214,15 +214,16 @@
   </style>
 <script>
 
-    // Profile Photo Loader & Uploader (auto-loads profile.jpg from repo OR saved custom photo)
+    
+    // Unified Owner Mode State & Persistence (Photo, Resume URL, Add/Edit/Delete Projects)
     const PHOTO_STORAGE_KEY = "waleed_portfolio_profile_photo_v1";
-
-    // Owner-Only Access Guard for Changing Resume and Profile Picture
+    const RESUME_STORAGE_KEY = "waleed_custom_resume_url_v1";
     const OWNER_PIN_KEY = "waleed_portfolio_owner_pin_v1";
     const OWNER_UNLOCK_KEY = "waleed_portfolio_owner_unlocked_v1";
     const DEFAULT_OWNER_PIN = "1012";
-    let isOwnerUnlocked = false;
-    let pendingOwnerAction = null;
+
+    window.isOwnerUnlocked = false;
+    window.pendingOwnerAction = null;
 
     function getOwnerPin() {
       try {
@@ -231,81 +232,6 @@
         return DEFAULT_OWNER_PIN;
       }
     }
-
-    function setOwnerUnlockedState(unlocked) {
-      isOwnerUnlocked = unlocked;
-      try {
-        if (unlocked) sessionStorage.setItem(OWNER_UNLOCK_KEY, "1");
-        else sessionStorage.removeItem(OWNER_UNLOCK_KEY);
-      } catch (e) {}
-
-      const statusBtn = document.getElementById("ownerAccessBtn");
-      if (statusBtn) {
-        statusBtn.textContent = unlocked ? "🔓 Owner Mode (Lock)" : "🔒 Owner Only";
-        statusBtn.classList.toggle("hidden", !unlocked);
-      }
-
-      const editResumeBtn = document.getElementById("editResumeUrlBtn");
-      if (editResumeBtn) {
-        editResumeBtn.classList.toggle("hidden", !unlocked);
-      }
-
-      const photoEditBtn = document.getElementById("ownerPhotoTriggerBtn");
-      if (photoEditBtn) {
-        photoEditBtn.classList.toggle("hidden", !unlocked);
-      }
-
-      ["navAddProjectBtn", "heroOpenAddModalBtn", "openAddProjectBtn2", "importProjectsLabel", "resetProjectsBtn"].forEach((btnId) => {
-        const el = document.getElementById(btnId);
-        if (el) el.classList.toggle("hidden", !unlocked);
-      });
-    }
-
-    function openOwnerModal(actionCallback) {
-      pendingOwnerAction = actionCallback || null;
-      const modal = document.getElementById("ownerAuthModal");
-      const errEl = document.getElementById("ownerPinError");
-      const inp = document.getElementById("ownerPinInput");
-      if (errEl) errEl.classList.add("hidden");
-      if (inp) {
-        inp.value = "";
-        setTimeout(() => inp.focus(), 50);
-      }
-      if (modal) modal.classList.remove("hidden");
-    }
-
-    function requireOwnerAccess(actionCallback) {
-      if (isOwnerUnlocked) {
-        if (typeof actionCallback === "function") actionCallback();
-        return;
-      }
-      openOwnerModal(actionCallback);
-    }
-
-    function applyCustomResumeUrl(url) {
-      if (!url) return;
-      const cleanUrl = url.trim();
-      if (!cleanUrl) return;
-      try { localStorage.setItem("waleed_custom_resume_url_v1", cleanUrl); } catch (e) {}
-      Object.keys(LENS_CONFIG).forEach((k) => {
-        LENS_CONFIG[k].resumeUrl = cleanUrl;
-      });
-      const heroResumeLink = document.getElementById("heroResumeLink");
-      if (heroResumeLink) heroResumeLink.href = cleanUrl;
-      showToast("Resume link updated (Owner Only)");
-    }
-
-    try {
-      if (sessionStorage.getItem(OWNER_UNLOCK_KEY) === "1") {
-        isOwnerUnlocked = true;
-      }
-      const savedResume = localStorage.getItem("waleed_custom_resume_url_v1");
-      if (savedResume) {
-        Object.keys(LENS_CONFIG).forEach((k) => {
-          LENS_CONFIG[k].resumeUrl = savedResume;
-        });
-      }
-    } catch (e) {}
 
     function applyProfilePhoto(src) {
       if (!src) return;
@@ -321,26 +247,87 @@
         if (fb) fb.classList.add("hidden");
       });
     }
-    try {
-      const savedPhoto = localStorage.getItem(PHOTO_STORAGE_KEY);
-      if (savedPhoto) applyProfilePhoto(savedPhoto);
-    } catch (e) {}
-    const photoInput = document.getElementById("profilePhotoInput");
-    if (photoInput) {
-      photoInput.addEventListener("change", (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const dataUrl = ev.target.result;
-          applyProfilePhoto(dataUrl);
-          try { localStorage.setItem(PHOTO_STORAGE_KEY, dataUrl); } catch (err) {}
-        };
-        reader.readAsDataURL(file);
-      });
+
+    function applyCustomResumeUrl(url) {
+      if (!url) return;
+      const cleanUrl = url.trim();
+      if (!cleanUrl) return;
+      try { localStorage.setItem(RESUME_STORAGE_KEY, cleanUrl); } catch (e) {}
+      if (typeof LENS_CONFIG !== "undefined") {
+        Object.keys(LENS_CONFIG).forEach((k) => {
+          LENS_CONFIG[k].resumeUrl = cleanUrl;
+        });
+      }
+      const heroResumeLink = document.getElementById("heroResumeLink");
+      if (heroResumeLink) heroResumeLink.href = cleanUrl;
+      if (typeof showToast === "function") showToast("Resume link updated!");
     }
 
-  
+    function syncOwnerControlsUI() {
+      const unlocked = Boolean(window.isOwnerUnlocked);
+      const statusBtn = document.getElementById("ownerAccessBtn");
+      if (statusBtn) {
+        statusBtn.textContent = unlocked ? "🔓 Owner Mode (Lock)" : "🔒 Owner Only";
+        statusBtn.classList.toggle("hidden", !unlocked);
+      }
+
+      const ownerOnlyIds = [
+        "navAddProjectBtn",
+        "heroOpenAddModalBtn",
+        "openAddProjectBtn2",
+        "importProjectsLabel",
+        "resetProjectsBtn",
+        "editResumeUrlBtn",
+        "ownerPhotoTriggerBtn"
+      ];
+      ownerOnlyIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle("hidden", !unlocked);
+      });
+
+      if (typeof renderProjects === "function") {
+        renderProjects();
+      }
+    }
+
+    function setOwnerUnlockedState(unlocked) {
+      window.isOwnerUnlocked = Boolean(unlocked);
+      try {
+        if (window.isOwnerUnlocked) sessionStorage.setItem(OWNER_UNLOCK_KEY, "1");
+        else sessionStorage.removeItem(OWNER_UNLOCK_KEY);
+      } catch (e) {}
+      syncOwnerControlsUI();
+    }
+
+    function openOwnerModal(actionCallback) {
+      window.pendingOwnerAction = typeof actionCallback === "function" ? actionCallback : null;
+      const modal = document.getElementById("ownerAuthModal");
+      const errEl = document.getElementById("ownerPinError");
+      const inp = document.getElementById("ownerPinInput");
+      if (errEl) {
+        errEl.textContent = "Incorrect PIN. Default PIN is 1012.";
+        errEl.classList.add("hidden");
+      }
+      if (inp) {
+        inp.value = "";
+        setTimeout(() => inp.focus(), 60);
+      }
+      if (modal) modal.classList.remove("hidden");
+    }
+
+    function requireOwnerAccess(actionCallback) {
+      if (window.isOwnerUnlocked) {
+        if (typeof actionCallback === "function") actionCallback();
+        return;
+      }
+      openOwnerModal(actionCallback);
+    }
+
+    try {
+      if (sessionStorage.getItem(OWNER_UNLOCK_KEY) === "1") {
+        window.isOwnerUnlocked = true;
+      }
+    } catch (e) {}
 </script>
 </head>
 <body style="background-color: #000000;" class="min-h-screen text-white selection:bg-[#EDEBE4] selection:text-white">
@@ -2224,30 +2211,30 @@ ${body}` : body;
   })();
 </script>
 
-  <!-- Owner-Only PIN Modal for Changing Resume & Profile Photo -->
-  <div id="ownerAuthModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="w-full max-w-md rounded-2xl bg-[#000000] border border-[#EDEBE4]/35 p-6 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between">
-        <h3 class="text-base font-extrabold text-white">Owner-Only Access (Resume &amp; Photo)</h3>
-        <button id="closeOwnerModalBtn" type="button" class="text-white hover:text-white text-lg font-bold">✕</button>
+  <!-- Owner-Only PIN Modal for Changing Resume, Profile Photo & Projects -->
+  <div id="ownerAuthModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-[#000000] border border-[#EDEBE4]/45 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#EDEBE4]/25 pb-3">
+        <h3 class="text-base font-extrabold text-white">Owner Mode Access</h3>
+        <button id="closeOwnerModalBtn" type="button" class="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-bold">✕</button>
       </div>
       <p class="text-xs text-white leading-relaxed">
-        Changing the profile photo or resume link is restricted to the portfolio owner. Enter your Owner PIN to unlock profile photo and resume editing.
+        Enter your Owner PIN to unlock adding/editing/deleting projects, updating the resume link, and changing the profile photo.
       </p>
       <div class="space-y-2">
         <label for="ownerPinInput" class="block text-xs font-semibold text-white">Owner PIN</label>
-        <input id="ownerPinInput" type="password" inputmode="numeric" placeholder="Enter PIN" class="w-full px-3.5 py-2 rounded-xl bg-[#091817] border border-[#EDEBE4]/30 text-white text-sm focus:outline-none focus:border-[#EDEBE4]" />
+        <input id="ownerPinInput" type="password" inputmode="numeric" placeholder="Enter PIN" class="w-full px-3.5 py-2.5 rounded-xl bg-[#09090b] border border-[#EDEBE4]/40 text-white text-sm focus:outline-none focus:border-[#EDEBE4]" />
         <p id="ownerPinError" class="hidden text-xs text-red-400 font-semibold">Incorrect PIN. Please try again.</p>
       </div>
       <div class="flex items-center justify-between gap-2 pt-2">
-        <button id="changeOwnerPinBtn" type="button" class="px-3 py-2 rounded-xl bg-[#000000] hover:bg-[#EDEBE4] text-white border border-[#EDEBE4]/30 text-xs font-semibold">
+        <button id="changeOwnerPinBtn" type="button" class="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-semibold">
           Change PIN
         </button>
         <div class="flex items-center gap-2">
           <button id="lockOwnerBtn" type="button" class="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-semibold">
             Lock
           </button>
-          <button id="confirmOwnerPinBtn" type="button" class="px-4 py-2 rounded-xl bg-[#EDEBE4] hover:bg-[#EDEBE4] text-white border border-[#EDEBE4]/40 text-xs font-bold">
+          <button id="confirmOwnerPinBtn" type="button" class="px-4 py-2 rounded-xl bg-[#7B2F2F] hover:bg-[#8E3636] text-white border border-[#7B2F2F] text-xs font-extrabold">
             Unlock
           </button>
         </div>
@@ -2255,11 +2242,11 @@ ${body}` : body;
     </div>
   </div>
 
-
 <script>
   (function() {
     const ownerBtn = document.getElementById("ownerAccessBtn");
     const photoTrigBtn = document.getElementById("ownerPhotoTriggerBtn");
+    const photoInput = document.getElementById("profilePhotoInput");
     const editResumeBtn = document.getElementById("editResumeUrlBtn");
     const closeOwnerBtn = document.getElementById("closeOwnerModalBtn");
     const confirmPinBtn = document.getElementById("confirmOwnerPinBtn");
@@ -2269,15 +2256,34 @@ ${body}` : body;
     const pinErr = document.getElementById("ownerPinError");
     const ownerModal = document.getElementById("ownerAuthModal");
 
-    setOwnerUnlockedState(isOwnerUnlocked);
+    // Restore saved photo & resume URL on load
+    try {
+      const savedPhoto = localStorage.getItem(PHOTO_STORAGE_KEY);
+      if (savedPhoto) applyProfilePhoto(savedPhoto);
+    } catch (e) {}
 
-    // Secret Owner Access Triggers (invisible to public visitors):
-    // 1. Add ?owner=1 to the URL
-    // 2. Press Ctrl + Shift + O (or Cmd + Shift + O)
-    // 3. Tap/click your name ("Waleed Muhammad Ibrahim Ismail") 5 times quickly
+    try {
+      const savedResume = localStorage.getItem(RESUME_STORAGE_KEY);
+      if (savedResume) {
+        if (typeof LENS_CONFIG !== "undefined") {
+          Object.keys(LENS_CONFIG).forEach((k) => {
+            LENS_CONFIG[k].resumeUrl = savedResume;
+          });
+        }
+        const heroResumeLink = document.getElementById("heroResumeLink");
+        if (heroResumeLink) heroResumeLink.href = savedResume;
+      }
+    } catch (e) {}
+
+    syncOwnerControlsUI();
+
+    // Secret Owner Access Triggers:
+    // 1. ?owner=1 in URL
+    // 2. Ctrl/Cmd + Shift + O
+    // 3. Clicking name ("Waleed Muhammad Ibrahim Ismail") 5 times quickly
     try {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("owner") === "1" && !isOwnerUnlocked) {
+      if (params.get("owner") === "1" && !window.isOwnerUnlocked) {
         setTimeout(() => openOwnerModal(null), 200);
       }
     } catch (e) {}
@@ -2285,9 +2291,9 @@ ${body}` : body;
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "O" || e.key === "o")) {
         e.preventDefault();
-        if (isOwnerUnlocked) {
+        if (window.isOwnerUnlocked) {
           setOwnerUnlockedState(false);
-          showToast("Owner mode locked");
+          if (typeof showToast === "function") showToast("Owner mode locked");
         } else {
           openOwnerModal(null);
         }
@@ -2305,9 +2311,9 @@ ${body}` : body;
           nameTapTimer = setTimeout(() => { nameTapCount = 0; }, 1500);
           if (nameTapCount >= 5) {
             nameTapCount = 0;
-            if (isOwnerUnlocked) {
+            if (window.isOwnerUnlocked) {
               setOwnerUnlockedState(false);
-              showToast("Owner mode locked");
+              if (typeof showToast === "function") showToast("Owner mode locked");
             } else {
               openOwnerModal(null);
             }
@@ -2316,12 +2322,11 @@ ${body}` : body;
       }
     });
 
-
     if (ownerBtn) {
       ownerBtn.addEventListener("click", () => {
-        if (isOwnerUnlocked) {
+        if (window.isOwnerUnlocked) {
           setOwnerUnlockedState(false);
-          showToast("Owner editing locked");
+          if (typeof showToast === "function") showToast("Owner editing locked");
         } else {
           openOwnerModal(null);
         }
@@ -2331,15 +2336,30 @@ ${body}` : body;
     if (photoTrigBtn) {
       photoTrigBtn.addEventListener("click", () => {
         requireOwnerAccess(() => {
-          const inp = document.getElementById("profilePhotoInput");
-          if (inp) inp.click();
+          if (photoInput) photoInput.click();
         });
+      });
+    }
+
+    if (photoInput) {
+      photoInput.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = ev.target.result;
+          applyProfilePhoto(dataUrl);
+          try { localStorage.setItem(PHOTO_STORAGE_KEY, dataUrl); } catch (err) {}
+          if (typeof showToast === "function") showToast("Profile picture updated!");
+        };
+        reader.readAsDataURL(file);
+        photoInput.value = "";
       });
     }
 
     function promptResumeEdit() {
       const currentHref = (document.getElementById("heroResumeLink") && document.getElementById("heroResumeLink").href) || "";
-      const nextUrl = window.prompt("Enter your new Resume URL (Google Drive View-Only or Tracking link):", currentHref);
+      const nextUrl = window.prompt("Enter your new Resume URL (Google Drive View-Only or direct link):", currentHref);
       if (nextUrl && nextUrl.trim()) {
         applyCustomResumeUrl(nextUrl.trim());
       }
@@ -2352,31 +2372,46 @@ ${body}` : body;
     }
 
     if (closeOwnerBtn && ownerModal) {
-      closeOwnerBtn.addEventListener("click", () => ownerModal.classList.add("hidden"));
+      closeOwnerBtn.addEventListener("click", () => {
+        ownerModal.classList.add("hidden");
+        window.pendingOwnerAction = null;
+      });
     }
 
     if (lockOwnerBtn) {
       lockOwnerBtn.addEventListener("click", () => {
         setOwnerUnlockedState(false);
         if (ownerModal) ownerModal.classList.add("hidden");
-        showToast("Owner access locked");
+        window.pendingOwnerAction = null;
+        if (typeof showToast === "function") showToast("Owner access locked");
       });
     }
 
+    function attemptUnlock() {
+      const entered = (pinInput && pinInput.value.trim()) || "";
+      if (entered === getOwnerPin()) {
+        setOwnerUnlockedState(true);
+        if (ownerModal) ownerModal.classList.add("hidden");
+        if (typeof showToast === "function") showToast("Owner mode unlocked");
+        const cb = window.pendingOwnerAction;
+        window.pendingOwnerAction = null;
+        if (typeof cb === "function") {
+          setTimeout(cb, 50);
+        }
+      } else if (pinErr) {
+        pinErr.classList.remove("hidden");
+      }
+    }
+
     if (confirmPinBtn) {
-      confirmPinBtn.addEventListener("click", () => {
-        const entered = (pinInput && pinInput.value.trim()) || "";
-        if (entered === getOwnerPin()) {
-          setOwnerUnlockedState(true);
-          if (ownerModal) ownerModal.classList.add("hidden");
-          showToast("Owner access unlocked");
-          if (typeof pendingOwnerAction === "function") {
-            const cb = pendingOwnerAction;
-            pendingOwnerAction = null;
-            cb();
-          }
-        } else if (pinErr) {
-          pinErr.classList.remove("hidden");
+      confirmPinBtn.addEventListener("click", attemptUnlock);
+    }
+
+    if (pinInput) {
+      pinInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          attemptUnlock();
         }
       });
     }
@@ -2396,15 +2431,30 @@ ${body}` : body;
           try { localStorage.setItem(OWNER_PIN_KEY, newPin.trim()); } catch (e) {}
           setOwnerUnlockedState(true);
           if (ownerModal) ownerModal.classList.add("hidden");
-          showToast("Owner PIN updated");
+          window.pendingOwnerAction = null;
+          if (typeof showToast === "function") showToast("Owner PIN updated");
         }
       });
     }
+
+    // Intercept edit/delete actions on project cards when not unlocked
+    document.addEventListener("click", (e) => {
+      const actionBtn = e.target.closest("[data-action]");
+      if (!actionBtn) return;
+      const action = actionBtn.getAttribute("data-action");
+      if ((action === "edit" || action === "delete") && !window.isOwnerUnlocked) {
+        e.preventDefault();
+        e.stopPropagation();
+        openOwnerModal(() => {
+          if (typeof renderProjects === "function") renderProjects();
+          setTimeout(() => actionBtn.click(), 80);
+        });
+      }
+    }, true);
   })();
 </script>
 
-
-<script>
+  <script>
 document.addEventListener("DOMContentLoaded", function() {
   // Enforce #7B2F2F active/hover styling on tabs without overriding other page elements
   function wireTabsColor7B2F2F() {
@@ -2509,33 +2559,7 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  // Enforce owner-only edit/delete/add/import/reset while keeping full view-only access & Drive links
-  const origSetOwner = window.setOwnerUnlockedState;
-  window.setOwnerUnlockedState = function(unlocked) {
-    if (typeof origSetOwner === "function") origSetOwner(unlocked);
-    ["navAddProjectBtn", "heroOpenAddModalBtn", "openAddProjectBtn2", "importProjectsLabel", "resetProjectsBtn", "editResumeUrlBtn", "ownerPhotoTriggerBtn", "ownerAccessBtn"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.classList.toggle("hidden", !unlocked);
-    });
-    if (typeof renderProjects === "function") renderProjects();
-  };
 
-  window.setOwnerUnlockedState(Boolean(window.isOwnerUnlocked));
-
-  document.addEventListener("click", function(e) {
-    const btn = e.target.closest("[data-action]");
-    if (!btn) return;
-    const action = btn.getAttribute("data-action");
-    if ((action === "edit" || action === "delete") && !window.isOwnerUnlocked) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (typeof openOwnerModal === "function") openOwnerModal();
-    }
-  }, true);
-});
-</script>
 
 </body>
 </html>
