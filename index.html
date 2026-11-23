@@ -1551,7 +1551,7 @@
                   <span class="px-2.5 py-1 rounded-full bg-[#000000]/85 border border-zinc-700 text-[11px] font-bold text-white">
                     ${getCategoryBadgeLabel(p.category)}
                   </span>
-                  ${isOwnerUnlocked ? `
+                  ${window.isOwnerUnlocked ? `
                   <div class="flex items-center gap-1">
                     <button type="button" data-action="edit" data-id="${p.id}" title="Edit Project (Owner Only)" class="px-2 py-1 rounded-lg bg-[#000000]/85 hover:bg-zinc-900 text-white text-xs border border-zinc-700">
                       ✎
@@ -2211,6 +2211,25 @@ ${body}` : body;
   })();
 </script>
 
+  
+  <!-- Owner Resume URL Modal (replaces window.prompt so it always works in any browser/preview) -->
+  <div id="ownerResumeModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-[#000000] border border-[#EDEBE4]/45 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#EDEBE4]/25 pb-3">
+        <h3 class="text-base font-extrabold text-white">Update Resume Link</h3>
+        <button id="closeOwnerResumeModalBtn" type="button" class="px-2 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-bold">✕</button>
+      </div>
+      <div class="space-y-2">
+        <label for="ownerResumeUrlInput" class="block text-xs font-semibold text-white">Resume URL (Google Drive or PDF link)</label>
+        <input id="ownerResumeUrlInput" type="url" placeholder="https://drive.google.com/..." class="w-full px-3.5 py-2.5 rounded-xl bg-[#09090b] border border-[#EDEBE4]/40 text-white text-sm focus:outline-none focus:border-[#EDEBE4]" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="cancelOwnerResumeBtn" type="button" class="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-semibold">Cancel</button>
+        <button id="saveOwnerResumeBtn" type="button" class="px-4 py-2 rounded-xl bg-[#7B2F2F] hover:bg-[#8E3636] text-white border border-[#7B2F2F] text-xs font-extrabold">Save Link</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Owner-Only PIN Modal for Changing Resume, Profile Photo & Projects -->
   <div id="ownerAuthModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="w-full max-w-md rounded-2xl bg-[#000000] border border-[#EDEBE4]/45 p-6 space-y-4 shadow-2xl">
@@ -2358,12 +2377,42 @@ ${body}` : body;
     }
 
     function promptResumeEdit() {
+      const resModal = document.getElementById("ownerResumeModal");
+      const resInp = document.getElementById("ownerResumeUrlInput");
       const currentHref = (document.getElementById("heroResumeLink") && document.getElementById("heroResumeLink").href) || "";
-      const nextUrl = window.prompt("Enter your new Resume URL (Google Drive View-Only or direct link):", currentHref);
-      if (nextUrl && nextUrl.trim()) {
-        applyCustomResumeUrl(nextUrl.trim());
+      if (resInp) {
+        resInp.value = currentHref;
+        setTimeout(() => resInp.focus(), 50);
       }
+      if (resModal) resModal.classList.remove("hidden");
     }
+
+    (function wireResumeModal() {
+      const resModal = document.getElementById("ownerResumeModal");
+      const resInp = document.getElementById("ownerResumeUrlInput");
+      const closeBtn = document.getElementById("closeOwnerResumeModalBtn");
+      const cancelBtn = document.getElementById("cancelOwnerResumeBtn");
+      const saveBtn = document.getElementById("saveOwnerResumeBtn");
+      if (closeBtn && resModal) closeBtn.addEventListener("click", () => resModal.classList.add("hidden"));
+      if (cancelBtn && resModal) cancelBtn.addEventListener("click", () => resModal.classList.add("hidden"));
+      if (saveBtn && resModal && resInp) {
+        saveBtn.addEventListener("click", () => {
+          const val = resInp.value.trim();
+          if (val) applyCustomResumeUrl(val);
+          resModal.classList.add("hidden");
+        });
+      }
+      if (resInp) {
+        resInp.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const val = resInp.value.trim();
+            if (val) applyCustomResumeUrl(val);
+            if (resModal) resModal.classList.add("hidden");
+          }
+        });
+      }
+    })();
 
     if (editResumeBtn) {
       editResumeBtn.addEventListener("click", () => {
