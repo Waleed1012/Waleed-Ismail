@@ -357,6 +357,10 @@
 
       <!-- Action Buttons -->
       <div class="flex items-center gap-2">
+        <button id="ownerModeTabBtn" type="button" class="px-3 py-1.5 rounded-lg bg-[#7B2F2F] hover:bg-[#8E3636] text-white border border-[#7B2F2F] text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5">
+          <span>🛡️</span>
+          <span id="ownerModeTabLabel">Owner Only</span>
+        </button>
         <button id="langToggleBtn" type="button" class="px-3 py-1.5 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 text-white border border-zinc-700 text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5">
           <span>🌐</span>
           <span id="langToggleLabel">عربي</span>
@@ -2230,6 +2234,65 @@ ${body}` : body;
     </div>
   </div>
 
+  
+  <!-- Owner Save & Publish Confirmation Modal -->
+  <div id="ownerPublishModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-xl rounded-2xl bg-[#000000] border border-[#EDEBE4]/60 p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex items-center justify-between border-b border-[#EDEBE4]/25 pb-3">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-[#EDEBE4]">Owner Control &amp; Global Publish</span>
+          <h3 class="text-lg font-extrabold text-white mt-0.5">Owner Only — Confirm &amp; Save Changes for All Browsers</h3>
+        </div>
+        <button id="closeOwnerPublishModalBtn" type="button" class="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-bold">✕</button>
+      </div>
+
+      <div class="rounded-xl bg-[#09090b] border border-[#EDEBE4]/30 p-4 space-y-2.5 text-xs text-white leading-relaxed">
+        <p class="font-bold text-sm text-white">Why uploading to GitHub is required for other browsers:</p>
+        <p>Editing projects, your profile photo, or your resume link inside a browser saves changes to <strong>your current browser's local storage</strong> only. Other browsers, incognito windows, or shared links will <strong>not</strong> see those changes until you update the hosted file on <strong>GitHub</strong>.</p>
+      </div>
+
+      <div id="ownerSyncStatusSummary" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+        <div class="p-3 rounded-xl bg-[#09090b] border border-[#EDEBE4]/25">
+          <div class="text-white/70">Profile Photo</div>
+          <div id="statusPhotoState" class="font-bold text-white mt-0.5">Default / Browser</div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#09090b] border border-[#EDEBE4]/25">
+          <div class="text-white/70">Resume Link</div>
+          <div id="statusResumeState" class="font-bold text-white mt-0.5">Default / Custom</div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#09090b] border border-[#EDEBE4]/25">
+          <div class="text-white/70">Projects Count</div>
+          <div id="statusProjectsState" class="font-bold text-white mt-0.5">6 Projects</div>
+        </div>
+      </div>
+
+      <div class="space-y-2 text-xs text-white/90 bg-[#09090b] p-4 rounded-xl border border-[#EDEBE4]/20">
+        <div class="font-bold text-white">How to apply changes for visitors on ANY browser:</div>
+        <ol class="list-decimal list-inside space-y-1.5">
+          <li>Click <strong>Confirm &amp; Download Published HTML</strong> below. This bakes your current projects, resume link, and uploaded photo directly into a standalone HTML file.</li>
+          <li>Upload/replace your <code>index.html</code> (or portfolio HTML file) in your <strong>GitHub</strong> repository and commit the change.</li>
+          <li>Wait ~1 minute for GitHub Pages to refresh, then open your portfolio link in any browser or incognito window.</li>
+        </ol>
+      </div>
+
+      <p id="ownerPublishConfirmMsg" class="hidden text-xs font-semibold text-emerald-300 bg-emerald-950/50 border border-emerald-700/50 rounded-xl p-3"></p>
+
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#EDEBE4]/20">
+        <div class="flex flex-wrap gap-2">
+          <button id="ownerUnlockOrLockBtn" type="button" class="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-semibold">
+            Unlock / Lock Editing
+          </button>
+          <button id="ownerDownloadPhotoBtn" type="button" class="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-semibold">
+            ⬇ Download profile.jpg
+          </button>
+        </div>
+        <button id="confirmSavePublishBtn" type="button" class="px-4 py-2.5 rounded-xl bg-[#7B2F2F] hover:bg-[#8E3636] text-white border border-[#7B2F2F] text-xs sm:text-sm font-extrabold shadow-lg">
+          ✓ Confirm &amp; Download Published HTML
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Owner-Only PIN Modal for Changing Resume, Profile Photo & Projects -->
   <div id="ownerAuthModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="w-full max-w-md rounded-2xl bg-[#000000] border border-[#EDEBE4]/45 p-6 space-y-4 shadow-2xl">
@@ -2278,7 +2341,18 @@ ${body}` : body;
     // Restore saved photo & resume URL on load
     try {
       const savedPhoto = localStorage.getItem(PHOTO_STORAGE_KEY);
-      if (savedPhoto) applyProfilePhoto(savedPhoto);
+      if (savedPhoto) {
+        applyProfilePhoto(savedPhoto);
+      } else {
+        // Append a lightweight session cache-buster for static profile.jpg so updated GitHub images appear without stale cache
+        const cb = Date.now().toString().slice(-6);
+        ["navProfileImg", "heroProfileImg"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el && el.getAttribute("src") === "profile.jpg") {
+            el.setAttribute("src", "profile.jpg?v=" + cb);
+          }
+        });
+      }
     } catch (e) {}
 
     try {
@@ -2652,6 +2726,170 @@ document.addEventListener("DOMContentLoaded", function() {
 </script>
 
 
+
+
+<script>
+  (function initOwnerSaveAndPublishTab() {
+    const ownerTabBtn = document.getElementById("ownerModeTabBtn");
+    const pubModal = document.getElementById("ownerPublishModal");
+    const closeBtn = document.getElementById("closeOwnerPublishModalBtn");
+    const unlockLockBtn = document.getElementById("ownerUnlockOrLockBtn");
+    const dlPhotoBtn = document.getElementById("ownerDownloadPhotoBtn");
+    const confirmBtn = document.getElementById("confirmSavePublishBtn");
+    const confirmMsg = document.getElementById("ownerPublishConfirmMsg");
+
+    function refreshPublishSummary() {
+      const photoEl = document.getElementById("statusPhotoState");
+      const resumeEl = document.getElementById("statusResumeState");
+      const projEl = document.getElementById("statusProjectsState");
+
+      let hasCustomPhoto = false;
+      try { hasCustomPhoto = Boolean(localStorage.getItem(PHOTO_STORAGE_KEY)); } catch (e) {}
+      if (photoEl) {
+        photoEl.textContent = hasCustomPhoto ? "Custom Uploaded (Embedded)" : "Default / profile.jpg";
+      }
+
+      let customResume = "";
+      try { customResume = localStorage.getItem(RESUME_STORAGE_KEY) || ""; } catch (e) {}
+      if (resumeEl) {
+        resumeEl.textContent = customResume ? "Custom Link Set" : "Default Drive Link";
+      }
+
+      if (projEl) {
+        const count = (typeof projects !== "undefined" && Array.isArray(projects)) ? projects.length : 6;
+        projEl.textContent = `${count} Projects Ready`;
+      }
+
+      if (unlockLockBtn) {
+        unlockLockBtn.textContent = window.isOwnerUnlocked ? "🔒 Lock Editing Mode" : "🔑 Unlock Editing (PIN)";
+      }
+    }
+
+    function openPublishModal() {
+      refreshPublishSummary();
+      if (confirmMsg) confirmMsg.classList.add("hidden");
+      if (pubModal) pubModal.classList.remove("hidden");
+    }
+
+    if (ownerTabBtn) {
+      ownerTabBtn.addEventListener("click", openPublishModal);
+    }
+
+    if (closeBtn && pubModal) {
+      closeBtn.addEventListener("click", () => pubModal.classList.add("hidden"));
+    }
+
+    if (unlockLockBtn) {
+      unlockLockBtn.addEventListener("click", () => {
+        if (window.isOwnerUnlocked) {
+          setOwnerUnlockedState(false);
+          refreshPublishSummary();
+          if (typeof showToast === "function") showToast("Owner editing mode locked.");
+        } else {
+          if (pubModal) pubModal.classList.add("hidden");
+          openOwnerModal(() => {
+            openPublishModal();
+          });
+        }
+      });
+    }
+
+    if (dlPhotoBtn && typeof window.downloadCurrentProfilePhotoAsJpg === "function") {
+      dlPhotoBtn.addEventListener("click", window.downloadCurrentProfilePhotoAsJpg);
+    }
+
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", () => {
+        try {
+          if (typeof saveProjects === "function") saveProjects();
+          let savedPhoto = "";
+          let savedResume = "";
+          try { savedPhoto = localStorage.getItem(PHOTO_STORAGE_KEY) || ""; } catch (e) {}
+          try { savedResume = localStorage.getItem(RESUME_STORAGE_KEY) || ""; } catch (e) {}
+          const currentProjectsJson = (typeof projects !== "undefined") ? JSON.stringify(projects) : "[]";
+
+          // Clone current DOM and embed current state so visitors on ANY browser see it immediately
+          const clone = document.documentElement.cloneNode(true);
+          const pubModalEl = clone.querySelector("#ownerPublishModal");
+          if (pubModalEl) pubModalEl.classList.add("hidden");
+          const authModalEl = clone.querySelector("#ownerAuthModal");
+          if (authModalEl) authModalEl.classList.add("hidden");
+
+          // Lock owner editing controls in the published visitor snapshot while keeping the Owner Only tab accessible
+          clone.querySelectorAll("#navAddProjectBtn, #heroOpenAddModalBtn, #openAddProjectBtn2, #importProjectsLabel, #resetProjectsBtn, #editResumeUrlBtn, #ownerPhotoTriggerBtn").forEach((el) => {
+            el.classList.add("hidden");
+          });
+
+          if (savedResume) {
+            const heroLink = clone.querySelector("#heroResumeLink");
+            if (heroLink) heroLink.setAttribute("href", savedResume);
+          }
+
+          if (savedPhoto) {
+            ["#navProfileImg", "#heroProfileImg"].forEach((sel) => {
+              const img = clone.querySelector(sel);
+              if (img) {
+                img.setAttribute("src", savedPhoto);
+                img.classList.remove("hidden");
+              }
+            });
+            ["#navProfileFallback", "#heroProfileFallback"].forEach((sel) => {
+              const fb = clone.querySelector(sel);
+              if (fb) fb.classList.add("hidden");
+            });
+          }
+
+          const injectionScript = clone.ownerDocument.createElement("script");
+          injectionScript.textContent = `
+            (function applyPublishedSnapshot() {
+              try {
+                const pubProjects = ${currentProjectsJson};
+                if (Array.isArray(pubProjects) && pubProjects.length > 0 && typeof projects !== "undefined") {
+                  projects = pubProjects;
+                  if (typeof saveProjects === "function") saveProjects();
+                  if (typeof renderProjects === "function") renderProjects();
+                }
+                const pubResume = ${JSON.stringify(savedResume)};
+                if (pubResume && typeof applyCustomResumeUrl === "function") {
+                  applyCustomResumeUrl(pubResume);
+                }
+                const pubPhoto = ${JSON.stringify(savedPhoto)};
+                if (pubPhoto && typeof applyProfilePhoto === "function") {
+                  applyProfilePhoto(pubPhoto);
+                }
+              } catch (err) {}
+            })();
+          `;
+          clone.querySelector("body").appendChild(injectionScript);
+
+          const finalHtml = "<!DOCTYPE html>\n" + clone.outerHTML;
+          const blob = new Blob([finalHtml], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "index.html";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+          if (confirmMsg) {
+            confirmMsg.textContent = "Confirmed & downloaded index.html with your latest changes. Upload this index.html file to your GitHub repository so visitors on any browser see it.";
+            confirmMsg.classList.remove("hidden");
+          }
+          if (typeof showToast === "function") {
+            showToast("Published index.html downloaded — upload to GitHub for all browsers!");
+          }
+        } catch (err) {
+          if (confirmMsg) {
+            confirmMsg.textContent = "Changes are saved locally in this browser. Use Export JSON or copy your HTML file to GitHub to publish for other browsers.";
+            confirmMsg.classList.remove("hidden");
+          }
+        }
+      });
+    }
+  })();
+</script>
 
 </body>
 </html>
